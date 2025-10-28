@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+    <%- include('includes/head') %>
+<body>
+    <%- include('includes/header') %>
+    <main>
+        <form action="/register" method="POST">
+            <% errors.forEach(error => { %>
+                <p class="notice"><%= error %></p>
+
+            <% }) %>
+
+            <fieldset>
+                <legend>Skapa ett konto!</legend>
+                <label for="username"><small>Användarnamn</small></label>
+                <input type="text" name="username" id="username" autocomplete="off">
+
+                <label for="password"><small>Lösenord</small></label>
+                <input type="password" name="password" id="password" autocomplete="off">
+
+                <br />
+                <br />
+                <button>Skapa kontot!</button>
+            </fieldset>
+       </form>
+    </main>
+    <%- include('includes/footer') %>
+    
+</body>
+</html>

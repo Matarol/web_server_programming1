@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('includes/head') %>
+<body>
+    <%- include('includes/header') %>
+    <main>
+        <form action="/edit-post/<%= post.id %>" method="POST">
+            <% errors.forEach(error => { %>
+                <p class="notice"><%= error %></p>
+
+            <% }) %>
+
+            <fieldset>
+                <legend>Uppdatera ditt inlägg: <%= post.title %></legend>
+                <label for="title"><small>Titel</small></label>
+                <input type="text" value="<%= post.title %>"  name="title" id="title" autocomplete="off">
+
+                <label for="body"><small>Innehåll</small></label>
+                <textarea name="body"  id="body"><%= post.body %></textarea>
+                
+
+                <br />
+                <br />
+                <button>Uppdatera!</button>
+            </fieldset>
+       </form>
+    </main>
+    <%- include('includes/footer') %>
+    
+</body>
+</html>

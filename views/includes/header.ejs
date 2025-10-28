@@ -1,0 +1,13 @@
+<header>
+        <h2><a href="/">My GR8! App</a></h2>
+        <nav>
+            <% if (user) { %>
+                <a href="/create-post">Skapa inlägg!</a>
+                <a href="/logout">Logga ut!</a>
+
+            <% } else { %>
+                <a href="/login">Logga in!</a>
+            <% } %>
+            
+        </nav>
+    </header>
