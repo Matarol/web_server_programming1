@@ -6,3 +6,5 @@ Den filen behöver innehålla ett attribut döpt JWTSECRET och innehålla en str
 Detta atribut används vid skapande av cookies för att sedan kunna identifiera användare vid användning av appens funktioner.
 
 JWTSECRET = sfdlkjhw97sdlghjdsv0%ksd/{sd9+sdvzd}
+
+Man behöver sedan också köra kommandot npm install för att installera nödvändiga libraries...
