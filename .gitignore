@@ -2,4 +2,5 @@
 .env
 =======
 .env
+/node_modules
 >>>>>>> parent of ba8f433 (Add .env)
