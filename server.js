@@ -9,6 +9,7 @@ const db = require("better-sqlite3")("myGR8app.db") // Den SQL-db som används o
 db.pragma("journal_mode = WAL") // Write Ahead Logging, gör så att skrivning/läsning tillåts samtidigt för bättre prestanda
 
 // Skapande av databas startar här
+// Tabellerna är ihopkopplade genom att users.id görs till posts.authorid
 const createTables = db.transaction(() => {
     db.prepare(`
         CREATE TABLE IF NOT EXISTS users (
