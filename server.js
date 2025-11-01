@@ -44,7 +44,9 @@ app.use(express.static(__dirname + '/public/')) // Använder style.css under map
 app.use(cookieParser())
 
 
-// Egen Middleware (function) som körs emellan (därav namnet) för att via "Next" sedan fortsätta med "nästa" kod/del av programmet.
+// Egen Middleware (function) som körs vid varje inkommande http-request och innan routens
+// egen "kod" alltså emellan anrop och exekvering (därav namnet) för att via "Next" sedan fortsätta med "nästa"
+// kod/del av programmet.
 app.use(function (req, res, next) {
 
     // Kör sanitize på inläggets innehåll samt att man här kan ange vilka html-taggar man vill tillåta som tillägget "marked" möjliggör.
@@ -58,12 +60,14 @@ app.use(function (req, res, next) {
     // Gör den lokala variabeln "errors" global så att homepage.ejs kan laddas utan felmeddelande "errors not defined..."
     res.locals.errors = []
 
-    // Kollar inkommande cookies
+    // Kollar om det finns en cookie och om den matchar den lokala JWTSECRET lagrad i filen .env.
+    // Om det finns en giltig cookie så är en användare inloggad (och variabel req.user innehåller cookie-info). Om inte, så är ingen inloggad (req.user är då false).
     try {
         const decoded = jwt.verify(req.cookies.myGR8app, process.env.JWTSECRET)
         req.user = decoded
     } catch(err) {
         req.user = false
+
     }
 
     // gör det möjligt att använda cookie-valideringen via "req.user = decoded/False" utanför denna funktion.
@@ -77,7 +81,9 @@ app.get("/", (req, res) => {
     if (req.user) {
         const postsStatement = db.prepare("SELECT * FROM posts WHERE authorid = ? ORDER BY createdDate DESC")
         const posts = postsStatement.all(req.user.userid)
-        return res.render("dashboard", {posts})
+        const otherPostStatement = db.prepare("SELECT posts.*, users.username FROM posts INNER JOIN users ON posts.authorid = users.id WHERE authorid != ? ORDER BY createdDate DESC")
+        const otherPosts = otherPostStatement.all(req.user.userid)
+        return res.render("dashboard", {posts, otherPosts})
     }
     res.render("homepage")
 })
@@ -108,23 +114,34 @@ app.post("/login", (req, res) => {
         return res.render("login", {errors})
     }
 
+    // Hämtar info till variabel "userInQuestion" från tabell "users" som matchar det inmatade användarnamnet
     const userInQuestionStatement = db.prepare("SELECT * FROM users WHERE USERNAME = ?")
     const userInQuestion = userInQuestionStatement.get(req.body.username)
 
+    // Om ingen match hittades, så userInQuestion inte är satt, sätts felmeddelande till "errors"
+    // och login-sidan läses in.
     if (!userInQuestion) {
-        errors = ["Invalid username / password"]
+        errors = ["Ogiltigt användarnamn / lösenord"]
         return res.render("login", {errors})
     }
 
+    // variabel "matchOrNot" sätts till resultatet av bcrypts "compareSync" funktion som jämför inmatade löseordet 
+    // med det sparade i databasen som hämtats till variabel userInQuestion. If sats hanterar sedan om det är match eller ej
     const matchOrNot = bcrypt.compareSync(req.body.password, userInQuestion.password)
     if (!matchOrNot) {
         errors = ["Ogiltigt användarnamn / lösenord"]
         return res.render("login", {errors})
     }
 
-    const ourTokenValue = jwt.sign({exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, userid: userInQuestion.id, username: userInQuestion.username}, process.env.JWTSECRET)
+    // Token skapas via JsonWebToken's sign funktion och lagras i variabel tokenValue
+    // Giltighetstid sätts till 24 timmar och användar-ID och användarnamn samt den lokalt lagrade JWTSECRET-strängen som hämtas
+    // ifrån filen .env. På så sätt säkras unika token men som kan "brytas ner" igen för att kolla ingående värden.
+    const tokenValue = jwt.sign({exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, userid: userInQuestion.id, username: userInQuestion.username}, process.env.JWTSECRET)
 
-    res.cookie("myGR8app", ourTokenValue, {
+    // En cookie skapas för användaren och tokenValue lagras i cookien. Giltighetstid på cookien sätts till 24 timmar. httpOnly säkerställer att
+    // cookien endast kan läsas via http-protokollet. secure gör att det endast är via https men det gäller inte när vi kör lokalt, via localhost...
+    // sameSite säkrar att det bara är den egna siten som kan läsa cookien.
+    res.cookie("myGR8app", tokenValue, {
         httpOnly: true,
         secure: true,
         sameSite: "strict",
@@ -134,6 +151,7 @@ app.post("/login", (req, res) => {
     res.redirect("/")
 
 })
+
 
 // Skapar konto
 app.post("/register", (req, res) => {   
@@ -179,10 +197,10 @@ app.post("/register", (req, res) => {
     const ourUser = lookupStatement.get(result.lastInsertRowid)
 
 // Skapar token-värde  genom att kombinera olika data och även inkludera JWTSECRET från .env
-    const ourTokenValue = jwt.sign({exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, userid: ourUser.id, username: ourUser.username}, process.env.JWTSECRET)
+    const tokenValue = jwt.sign({exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, userid: ourUser.id, username: ourUser.username}, process.env.JWTSECRET)
 
 // Skapar en cookie som inkluderar det nyligen skapade token-värdet.
-    res.cookie("myGR8app", ourTokenValue, {
+    res.cookie("myGR8app", tokenValue, {
         httpOnly: true,
         secure: true,
         sameSite: "strict",
@@ -210,12 +228,16 @@ app.get("/create-post", mustBeLoggedIn, (req, res) => {
 function sharedPostValidation(req) {
     const errors = []
 
+    // Om titel/innehåll är annat än text-sträng sätts de till "tomma"
     if (typeof req.body.title !== "string") req.body.title = ""
     if (typeof req.body.body !== "string") req.body.body = ""
 
+    // funktionen sanitizeHTML körs på titel/innehåll som då också tillåter viss formatering/vissa html-taggar
+    // som definierats i funktionen via "allowedTags" samt "allowedAttributes"
     req.body.title = sanitizeHTML(req.body.title.trim(), {allowedTags: [], allowedAttributes: {}})
     req.body.body = sanitizeHTML(req.body.body.trim(), {allowedTags: [], allowedAttributes: {}})
 
+    // if satser som skickar meddelande ifall titel/innehåll är tomma.
     if (!req.body.title) errors.push("Du måste ange en titel")
     if (!req.body.body) errors.push("Du måste ge inlägget innehåll.")
 
@@ -262,7 +284,7 @@ app.get("/edit-post/:id", mustBeLoggedIn, (req, res) => {
 })
 
 
-// Vid klick på uppdatera-knappen för att uppdatera inlägget i databasen
+// Vid klick på uppdatera-knappen för att uppdatera inlägget i databasen körs denna route
 app.post("/edit-post/:id", mustBeLoggedIn, (req, res) => {
     const statement = db.prepare("SELECT * FROM posts WHERE id = ?")
     const post = statement.get(req.params.id)
@@ -276,17 +298,19 @@ app.post("/edit-post/:id", mustBeLoggedIn, (req, res) => {
 
     const errors = sharedPostValidation(req)
 
+    // Om array "errors" innehåller något läses "edit-post" sidan in och felmeddelande presenteras.
     if (errors.length) {
         return res.render("edit-post", {errors})
     }
 
+    // om allt OK så körs nedan och inlägget uppdateras
     const updateStatement = db.prepare("UPDATE posts SET title = ?, body = ? WHERE id = ?")
     updateStatement.run(req.body.title, req.body.body, req.params.id)
 
+    // Efter uppdatering av db record blir man dirigerad till det specifika inläggets sida (mallen "single-post")
     res.redirect(`/post/${req.params.id}`)
 
 })
-
 
 // För att radera ett inlägg
 app.post("/delete-post/:id", mustBeLoggedIn, (req, res) => {
@@ -302,6 +326,7 @@ app.post("/delete-post/:id", mustBeLoggedIn, (req, res) => {
     if (post.authorid !== req.user.userid)
         return res.redirect("/")
     
+    // Om allt OK skickas delete statement till databasen och det specifika inlägget raderas.
     const deleteStatement = db.prepare("DELETE FROM posts WHERE id = ?")
     deleteStatement.run(req.params.id)
 
@@ -316,8 +341,40 @@ app.get("/post/:id", (req, res) => {
     if (!post) {
         return res.redirect("/")
     }
+
+    // kollar ifall författare av det specifika inlägget matchar med inloggad användare.
+    // svara med att inlägget läses in via "single-post" mallen med tillhörnade information
+    // ("post" samt om författare true/false via "isAuthor")
     const isAuthor = post.authorid === req.user.userid
     res.render("single-post", { post, isAuthor })
 })
 
+// Vid klick på länken "Radera konto!" läses sidan "delete-account" in som då också
+// innehåller den inloggade användarens inlägg i en lista.
+app.get("/delete-account", (req, res) => {
+
+    const postsStatement = db.prepare("SELECT * FROM posts WHERE authorid = ? ORDER BY createdDate DESC")
+    const posts = postsStatement.all(req.user.userid)
+
+    res.render("delete-account", { posts })
+})
+
+// Vid klickande på knappen "Radera konto!" raderas inloggad användares inlägg, konto samt kakan tas bort.
+// Svarar med redirect till "homepage"
+app.post("/delete-account", (req, res) => {
+
+    let errors = []
+
+    const deleteAllStatement = db.prepare("DELETE FROM posts WHERE authorid = ?")
+    const deleteAll = deleteAllStatement.run(req.user.userid)
+
+    const deleteAccountStatement = db.prepare("DELETE FROM users WHERE id = ?")
+    const deleteAccount = deleteAccountStatement.run(req.user.userid)
+
+    res.clearCookie("myGR8app")
+
+    return res.redirect("/")
+})
+
+// Sätter vilken port appen skall lyssna på
 app.listen(3000)

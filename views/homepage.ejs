@@ -4,6 +4,9 @@
 <body>
     <%- include('includes/header') %>
     <main>
+        <% errors.forEach(error => { %>
+            <p class="notice"><%= error %></p>
+        <% }) %>
         <form action="/register" method="POST">
             <% errors.forEach(error => { %>
                 <p class="notice"><%= error %></p>

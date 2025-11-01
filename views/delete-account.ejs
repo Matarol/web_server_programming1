@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('includes/head') %>
+<body>
+    <header>
+        <h2><a href="/">My GR8! App</a></h2>
+        <nav>
+            <a href="/">Tillbaka</a>
+            <a href="/logout">Logga ut!</a>
+        </nav>
+        
+    </header>
+    <main>
+        <% if (posts.length == 0) { %>
+            <h4>Notera! ditt konto med användarnamn: <%= user.username %> kommer raderas permanent!</h4>
+        <% } else { %>
+       <h4>Notera! Dina inlägg nedan samt kontot med användarnamn: <p><%= user.username %></p>kommer raderas permanent!</h4>
+       <% } %>
+       
+       <ul>
+        <% posts.forEach(post => { %>
+            <li><a href="/post/<%= post.id %>"> <%= post.title %> </a><span>-</span> skapat <%= new Date(post.createdDate).getFullYear() %> <%= new Date(post.createdDate).getMonth() +1 %> <%= new Date(post.createdDate).getDate() %></li>
+
+        <% })  %>
+       </ul>
+       <form action="/delete-account" method="POST">
+            <button>Radera!</button>
+       </form>
+       
+    </main>    
+    <%- include('includes/footer') %>
+    
+</body>
+</html>
