@@ -3,4 +3,7 @@
 =======
 .env
 /node_modules
+myGR8app.db
+myGR8app.db-wal
+myGR8app.db-shm
 >>>>>>> parent of ba8f433 (Add .env)
