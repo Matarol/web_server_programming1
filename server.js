@@ -379,4 +379,5 @@ app.post("/delete-account", (req, res) => {
 
 // Sätter vilken port appen skall lyssna på
 
-app.listen(8080)
+app.listen(443)
+
